@@ -1,257 +1,553 @@
-// ============================================================================
-// BACKEND CONTRACT
-// Each returned tab must include: id (number), title (string), url (string),
-// status ("safe" | "malicious" | "pending"), riskScore (number), and
-// evidence (array of strings). The API may return the array directly or as
-// { tabs: [...] }. No local/demo tab records are loaded in this popup.
-// ============================================================================
+/**
+ * PhishGuard Web - SOC Triage Popup Logic
+ * Vanilla JavaScript (No Frameworks)
+ * 
+ * Features:
+ * - Tab query & merge with active background.js session cache.
+ * - Tri-state dynamic accordion rendering (Malicious, Unknown, Safe).
+ * - Remediation Hook: Close Tab (chrome.tabs.remove + DOM removal).
+ * - Remediation Hook: Report False Positive (navigator.clipboard.writeText + suppression).
+ * - Real-time metrics counters, filtering, and Rescan Open Tabs trigger.
+ */
 
-// The popup talks only to the local backend; threat-feed checks run server-side.
-const BACKEND_CONFIG = {
-  endpoint: "http://127.0.0.1:8787/api/analyze"
+const BACKEND_HEALTH_URL = 'http://127.0.0.1:8787/api/health';
+
+// Local UI state
+const state = {
+  tabs: [],            // Chrome tab objects
+  triageData: new Map(), // tabId -> verdict object
+  suppressionList: [], // array of suppressed URLs
+  currentFilter: 'all',// 'all' | 'malicious' | 'unknown' | 'safe'
+  isScanning: false
 };
 
-// The backend response replaces this empty array after a successful request.
-let tabsData = [];
+// DOM Elements
+const elList = document.getElementById('accordion-list');
+const elEmpty = document.getElementById('empty-state');
+const elLoading = document.getElementById('loading-indicator');
+const elBtnRescan = document.getElementById('btn-rescan');
+const elToast = document.getElementById('toast-banner');
+const elToastText = document.getElementById('toast-text');
+const elStatusPill = document.getElementById('backend-status-pill');
+const elCountMalicious = document.getElementById('count-malicious');
+const elCountUnknown = document.getElementById('count-unknown');
+const elCountSafe = document.getElementById('count-safe');
+const elCountTotal = document.getElementById('count-total');
+const filterButtons = document.querySelectorAll('.filter-btn');
 
-// Get the HTML element where renderTabs() inserts all tab accordion items.
-const tabsContainer = document.getElementById("tabs-container");
-// Get the small label used to show the number of tabs found.
-const tabCount = document.getElementById("tab-count");
-// Get the scan button so it can launch the backend analysis request.
-const analyzeButton = document.getElementById("analyze-button");
-
-// Convert untrusted backend text to HTML-safe text before inserting it into markup.
-function escapeHTML(value) {
-  // Replace HTML-sensitive characters with their safe entity equivalents.
-  return String(value).replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;", // Prevent an ampersand from starting an HTML entity.
-    "<": "&lt;", // Prevent text from being interpreted as an HTML tag.
-    ">": "&gt;", // Prevent text from ending or forming an HTML tag.
-    '"': "&quot;", // Keep double quotes from escaping HTML attributes.
-    "'": "&#39;" // Keep single quotes from escaping HTML attributes.
-  })[character]); // Return the escaped replacement for the matched character.
+/**
+ * Escapes HTML characters to prevent XSS.
+ */
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
-// Return the inline SVG icon that corresponds to a tab's analysis status.
-function getStatusIcon(status) {
-  // Malicious tabs use a red circle with an X mark.
-  if (status === "malicious") {
-    return `<svg class="status-icon status-malicious" viewBox="0 0 20 20" fill="none" aria-label="Malicious" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="10" cy="10" r="8" fill="currentColor" fill-opacity=".13"/>
-      <path d="m7 7 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-    </svg>`;
+/**
+ * Extracts a clean hostname or fallback string.
+ */
+function getHostname(urlStr) {
+  try {
+    return new URL(urlStr).hostname;
+  } catch {
+    return urlStr || 'about:blank';
   }
-
-  // Pending tabs use a partial circle; CSS rotates it to create a spinner.
-  if (status === "pending") {
-    return `<svg class="status-icon status-pending" viewBox="0 0 20 20" fill="none" aria-label="Analysis pending" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-opacity=".26" stroke-width="2"/>
-      <path d="M10 2.5A7.5 7.5 0 0 1 17.5 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-    </svg>`;
-  }
-
-  // All other statuses use the green check icon for a safe tab.
-  return `<svg class="status-icon status-safe" viewBox="0 0 20 20" fill="none" aria-label="Safe" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="10" cy="10" r="8" fill="currentColor" fill-opacity=".13"/>
-    <path d="m6.2 10.1 2.5 2.5 5.2-5.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>`;
 }
 
-// Turn an evidence array into safe, warning-icon list markup.
-function getEvidenceMarkup(evidence, status) {
-  // Show a real pending state rather than implying an unfinished scan is safe.
-  if (!evidence.length && status === "pending") {
-    return `<p class="no-evidence">Threat-feed lookup is still processing.</p>`;
-  }
-
-  // A completed report with no detections is described as provider results, not certainty.
-  if (!evidence.length) {
-    return `<p class="no-evidence">No matches in the configured threat feeds.</p>`;
-  }
-
-  // Escape every backend evidence string before placing it in the HTML template.
-  const items = evidence.map((item) => `
-    <li>
-      <svg class="evidence-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-        <path d="M8 1.8 14.2 13H1.8L8 1.8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-        <path d="M8 5.4v3.3m0 1.7h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-      <span>${escapeHTML(item)}</span>
-    </li>`).join(""); // Join all generated list items into one HTML string.
-
-  // Wrap the generated list items in the styled evidence-list container.
-  return `<ul class="evidence-list">${items}</ul>`;
+/**
+ * Displays a transient notification toast banner.
+ */
+let toastTimeout = null;
+function showToast(message) {
+  elToastText.textContent = message;
+  elToast.classList.remove('hidden');
+  if (toastTimeout) clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    elToast.classList.add('hidden');
+  }, 3500);
 }
 
-// Generate all accordion rows from tabsData and put them into the popup DOM.
-function renderTabs() {
-  // Stop safely if this script is loaded on a page without the expected container.
-  if (!tabsContainer) return;
+/**
+ * Checks connection health to Node.js backend.
+ */
+async function checkBackendHealth() {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
 
-  // Update the visible count label from the current backend result count.
-  tabCount.textContent = `${tabsData.length} detected`;
+    const res = await fetch(BACKEND_HEALTH_URL, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
 
-  // Show an honest empty state until the backend returns real scan results.
-  if (tabsData.length === 0) {
-    tabsContainer.innerHTML = '<p class="empty-state">No backend results yet. Select Analyze Open Tabs to scan.</p>';
+    if (res.ok) {
+      elStatusPill.className = 'status-pill';
+      elStatusPill.innerHTML = '<span class="status-dot"></span><span class="status-text">API Online</span>';
+      elStatusPill.title = 'Connected to 127.0.0.1:8787';
+      return true;
+    }
+  } catch {
+    // API offline or unreachable
+  }
+
+  elStatusPill.className = 'status-pill status-offline';
+  elStatusPill.innerHTML = '<span class="status-dot"></span><span class="status-text">API Offline</span>';
+  elStatusPill.title = 'Cannot reach http://127.0.0.1:8787. Ensure server.js is running.';
+  return false;
+}
+
+/**
+ * Fetches open tabs, merges with background session cache, queries uncached.
+ */
+async function loadAndTriageTabs(forceRescan = false) {
+  if (state.isScanning) return;
+  state.isScanning = true;
+
+  elBtnRescan.classList.add('is-scanning');
+  elLoading.classList.remove('hidden');
+  elEmpty.classList.add('hidden');
+
+  try {
+    // 1. Fetch current open tabs
+    const allTabs = await chrome.tabs.query({});
+    
+    // Filter to inspectable HTTP/HTTPS tabs
+    const inspectableTabs = allTabs.filter(tab => {
+      const url = tab.url || '';
+      return url.startsWith('http://') || url.startsWith('https://');
+    });
+
+    state.tabs = inspectableTabs;
+
+    // 2. Fetch active session cache and suppression list from service worker
+    const backgroundState = await chrome.runtime.sendMessage({ action: 'GET_STATE' });
+    const sessionCache = backgroundState?.data?.sessionCache || {};
+    state.suppressionList = backgroundState?.data?.suppressionList || [];
+
+    const now = Date.now();
+    const CACHE_TTL_MS = 10 * 60 * 1000;
+    const uncachedTabs = [];
+    const resolvedVerdicts = new Map();
+
+    // 3. Match against session cache
+    for (const tab of inspectableTabs) {
+      const rawUrl = tab.url || '';
+      const normUrl = rawUrl.split('#')[0]; // simple normalize
+      const cached = sessionCache[normUrl];
+
+      if (!forceRescan && cached && (now - cached.cachedAt < CACHE_TTL_MS)) {
+        resolvedVerdicts.set(tab.id, cached.verdict);
+      } else {
+        uncachedTabs.push(tab);
+      }
+    }
+
+    // 4. Request fresh analysis for uncached tabs
+    if (uncachedTabs.length > 0) {
+      const analyzeResponse = await chrome.runtime.sendMessage({
+        action: 'ANALYZE_BATCH',
+        tabs: uncachedTabs.map(t => ({ id: t.id, title: t.title, url: t.url }))
+      });
+
+      if (analyzeResponse?.success && Array.isArray(analyzeResponse.verdicts)) {
+        for (let i = 0; i < uncachedTabs.length; i++) {
+          const tab = uncachedTabs[i];
+          const verdict = analyzeResponse.verdicts[i];
+          if (verdict) {
+            resolvedVerdicts.set(tab.id, verdict);
+          }
+        }
+      }
+    }
+
+    state.triageData = resolvedVerdicts;
+
+    // 5. Update UI
+    renderAccordionList();
+    updateMetrics();
+
+  } catch (err) {
+    console.error('[Popup Triage Error]', err);
+    showToast(`Error during triage: ${err.message}`);
+  } finally {
+    state.isScanning = false;
+    elBtnRescan.classList.remove('is-scanning');
+    elLoading.classList.add('hidden');
+  }
+}
+
+/**
+ * Updates summary metrics ribbon.
+ */
+function updateMetrics() {
+  let malicious = 0;
+  let unknown = 0;
+  let safe = 0;
+
+  for (const tab of state.tabs) {
+    const verdict = state.triageData.get(tab.id);
+    if (!verdict) continue;
+
+    const normUrl = (tab.url || '').split('#')[0];
+    const isSuppressed = state.suppressionList.includes(normUrl);
+
+    if (verdict.status === 'malicious') {
+      if (isSuppressed) {
+        // Count suppressed threats separately or under safe/suppressed
+        safe++;
+      } else {
+        malicious++;
+      }
+    } else if (verdict.status === 'safe') {
+      safe++;
+    } else {
+      unknown++;
+    }
+  }
+
+  elCountMalicious.textContent = malicious;
+  elCountUnknown.textContent = unknown;
+  elCountSafe.textContent = safe;
+  elCountTotal.textContent = state.tabs.length;
+}
+
+/**
+ * Renders the accordion list according to Tri-State specifications:
+ * - Malicious tabs: Red border, expanded by default, riskScore: 100, bulleted evidence list.
+ * - Unknown tabs: Gray border, list missing sources in unverifiedBy array.
+ * - Safe tabs: Subtle border, collapsed by default.
+ */
+function renderAccordionList() {
+  elList.innerHTML = '';
+
+  if (state.tabs.length === 0) {
+    elEmpty.classList.remove('hidden');
     return;
   }
 
-  // Convert every backend tab record into its corresponding accordion markup.
-  tabsContainer.innerHTML = tabsData.map((tab) => {
-    // Escape backend-provided strings before inserting them into HTML text nodes.
-    const title = escapeHTML(tab.title);
-    const url = escapeHTML(tab.url);
-    // Create a unique details-panel ID; Number() keeps the ID safe and predictable.
-    const panelId = `tab-details-${Number(tab.id)}`;
-    // Set a boolean used for malicious-only styling and risk badge output.
-    const isMalicious = tab.status === "malicious";
-    // Convert the raw backend status to a short accessible label.
-    const statusLabel = tab.status === "malicious" ? "Malicious" : tab.status === "pending" ? "Analyzing" : "Safe";
+  elEmpty.classList.add('hidden');
 
-    // Return one complete tab row: trigger button followed by the expandable details.
-    return `
-      <article class="tab-item${isMalicious ? " is-malicious" : ""}" data-tab-id="${Number(tab.id)}">
-        <button class="tab-trigger" type="button" aria-expanded="false" aria-controls="${panelId}">
-          <span class="tab-title-wrap">
-            <span class="tab-status">${getStatusIcon(tab.status)}</span>
-            <span class="tab-title">${title}</span>
-          </span>
-          <span class="sr-status" aria-label="${statusLabel}"></span>
-          <svg class="chevron" viewBox="0 0 16 16" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div class="details-shell" id="${panelId}" aria-hidden="true">
-          <div class="details-clip">
-            <div class="tab-details">
-              <div class="detail-divider"></div>
-              <div class="detail-header">
-                <span class="full-url">${url}</span>
-                ${isMalicious ? `<span class="risk-badge">RISK <strong>${Number(tab.riskScore)}</strong></span>` : ""}
-              </div>
-              <h3 class="evidence-heading">Threat evidence</h3>
-              ${getEvidenceMarkup(Array.isArray(tab.evidence) ? tab.evidence : [], tab.status)}
-              <div class="action-row">
-                <button class="action-button close-tab-button" type="button" data-action="close" data-tab-id="${Number(tab.id)}">Close Tab</button>
-                <button class="action-button report-button" type="button" data-action="report" data-tab-id="${Number(tab.id)}">Report False Positive</button>
-              </div>
-            </div>
+  let visibleCount = 0;
+
+  for (const tab of state.tabs) {
+    const verdict = state.triageData.get(tab.id) || {
+      id: tab.id,
+      title: tab.title,
+      url: tab.url,
+      status: 'unknown',
+      riskScore: 0,
+      evidence: [],
+      notes: ['Pending analysis'],
+      unverifiedBy: ['Pending']
+    };
+
+    const normUrl = (tab.url || '').split('#')[0];
+    const isSuppressed = state.suppressionList.includes(normUrl);
+
+    // Apply Filter
+    if (state.currentFilter === 'malicious' && (verdict.status !== 'malicious' || isSuppressed)) {
+      continue;
+    }
+    if (state.currentFilter === 'unknown' && verdict.status !== 'unknown') {
+      continue;
+    }
+    if (state.currentFilter === 'safe' && verdict.status !== 'safe' && !isSuppressed) {
+      continue;
+    }
+
+    visibleCount++;
+
+    const isMalicious = verdict.status === 'malicious' && !isSuppressed;
+    const isUnknown = verdict.status === 'unknown';
+    const isSafe = verdict.status === 'safe';
+
+    // Item element
+    const itemEl = document.createElement('div');
+    itemEl.className = 'accordion-item';
+    itemEl.dataset.tabId = tab.id;
+
+    if (isMalicious) {
+      itemEl.classList.add('is-malicious', 'is-open'); // Red border, expanded by default
+    } else if (isSuppressed) {
+      itemEl.classList.add('is-suppressed');
+    } else if (isUnknown) {
+      itemEl.classList.add('is-unknown'); // Gray border
+    } else if (isSafe) {
+      itemEl.classList.add('is-safe');
+    }
+
+    // Determine Status Badge Markup
+    let badgeClass = 'badge-safe';
+    let badgeLabel = 'SAFE';
+
+    if (isSuppressed) {
+      badgeClass = 'badge-suppressed';
+      badgeLabel = 'SUPPRESSED';
+    } else if (isMalicious) {
+      badgeClass = 'badge-malicious';
+      badgeLabel = 'MALICIOUS';
+    } else if (isUnknown) {
+      badgeClass = 'badge-unknown';
+      badgeLabel = 'UNKNOWN';
+    }
+
+    // Risk Score
+    const displayRiskScore = isMalicious ? 100 : 0;
+    const scoreBadgeClass = displayRiskScore === 100 ? 'score-100' : 'score-0';
+
+    // Header Content
+    const DEFAULT_FAVICON = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2394a3b8"><circle cx="12" cy="12" r="10"/></svg>';
+    const rawFavicon = tab.favIconUrl || '';
+    const tabFavicon = (/^(https?:\/\/|data:image\/|chrome:\/\/favicon\/)/i.test(rawFavicon)) ? rawFavicon : DEFAULT_FAVICON;
+    const tabHostname = getHostname(tab.url);
+
+    // Build Evidence HTML (for malicious)
+    let evidenceHtml = '';
+    if (verdict.evidence && verdict.evidence.length > 0) {
+      const items = verdict.evidence.map(e => `<li>${escapeHtml(e)}</li>`).join('');
+      evidenceHtml = `
+        <div class="section-heading">Threat Evidence</div>
+        <ul class="evidence-list">${items}</ul>
+      `;
+    }
+
+    // Build Unverified Sources HTML (for unknown)
+    let unverifiedHtml = '';
+    if (verdict.unverifiedBy && verdict.unverifiedBy.length > 0) {
+      const items = verdict.unverifiedBy.map(u => `<li>Unverified by: ${escapeHtml(u)}</li>`).join('');
+      unverifiedHtml = `
+        <div class="section-heading">Unverified Intelligence Sources</div>
+        <ul class="unverified-list">${items}</ul>
+      `;
+    }
+
+    // Build Notes HTML
+    let notesHtml = '';
+    if (verdict.notes && verdict.notes.length > 0) {
+      const items = verdict.notes.map(n => `<li>${escapeHtml(n)}</li>`).join('');
+      notesHtml = `
+        <div class="section-heading">Diagnostics & Notes</div>
+        <ul class="notes-list">${items}</ul>
+      `;
+    }
+
+    // Remediation Buttons
+    const fpButtonHtml = (isMalicious || isUnknown) ? `
+      <button class="btn-action btn-report-fp" data-tab-id="${tab.id}" title="Copy threat telemetry to clipboard and suppress future alerts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span>Report False Positive</span>
+      </button>
+    ` : '';
+
+    itemEl.innerHTML = `
+      <div class="accordion-header">
+        <div class="tab-meta">
+          <img class="tab-favicon" src="${escapeHtml(tabFavicon)}" alt="">
+          <div class="tab-info">
+            <span class="tab-title-line" title="${escapeHtml(tab.title || tab.url)}">${escapeHtml(tab.title || 'Untitled Tab')}</span>
+            <span class="tab-domain-line">${escapeHtml(tabHostname)}</span>
           </div>
         </div>
-      </article>`;
-  }).join(""); // Combine every tab's HTML into one string for the container.
-}
+        <div class="tab-badge-group">
+          <span class="verdict-badge ${badgeClass}">${badgeLabel}</span>
+          <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+      </div>
+      <div class="accordion-body">
+        <div class="score-row">
+          <span class="score-label">Risk Score</span>
+          <span class="score-badge ${scoreBadgeClass}">${displayRiskScore} / 100</span>
+        </div>
+        <div class="url-display-box" title="${escapeHtml(tab.url)}">${escapeHtml(tab.url)}</div>
+        ${evidenceHtml}
+        ${unverifiedHtml}
+        ${notesHtml}
+        <div class="remediation-actions">
+          <button class="btn-action btn-close-tab" data-tab-id="${tab.id}" title="Instantly terminate this browser tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+            <span>Close Tab</span>
+          </button>
+          ${fpButtonHtml}
+        </div>
+      </div>
+    `;
 
-// Send the currently open web tabs to the backend and render its scan results.
-async function analyzeOpenTabs() {
-  // Remember the original button text so it can be restored after the request.
-  const buttonLabel = analyzeButton.querySelector("span");
-  const originalLabel = buttonLabel.textContent;
-  // Give immediate feedback and prevent duplicate requests while scanning.
-  analyzeButton.disabled = true;
-  buttonLabel.textContent = "Analyzing...";
-  tabCount.textContent = "Connecting to backend...";
-
-  try {
-    // Stop before making a request if a real endpoint has not been configured.
-    if (!BACKEND_CONFIG.endpoint.trim()) {
-      throw new Error("Backend endpoint is not configured.");
+    // Hook: Favicon fallback without inline onerror (CSP Compliant)
+    const faviconImg = itemEl.querySelector('.tab-favicon');
+    if (faviconImg) {
+      faviconImg.addEventListener('error', () => {
+        faviconImg.src = DEFAULT_FAVICON;
+      });
     }
 
-    // Query current-window tabs; feed credentials, if used, stay on the backend.
-    // Read open tabs from this Chrome window; the manifest must grant the tabs permission.
-    const openTabs = await chrome.tabs.query({ currentWindow: true });
-    // Send only normal web pages and only the fields needed for scanning.
-    const tabsToAnalyze = openTabs
-      .filter((tab) => Number.isInteger(tab.id) && /^https?:\/\//i.test(tab.url || ""))
-      .map((tab) => ({ id: tab.id, title: tab.title || "Untitled tab", url: tab.url }));
-    if (!tabsToAnalyze.length) throw new Error("No analyzable web tabs are open.");
-
-    // Send tab metadata to the local backend; external feed credentials never enter the popup.
-    const response = await fetch(BACKEND_CONFIG.endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tabs: tabsToAnalyze })
+    // Hook: Accordion toggle
+    const headerEl = itemEl.querySelector('.accordion-header');
+    headerEl.addEventListener('click', (e) => {
+      // Don't toggle if clicking a button inside header
+      itemEl.classList.toggle('is-open');
     });
-    // Read backend error details when available so setup/provider errors are visible.
-    if (!response.ok) {
-      const errorPayload = await response.json().catch(() => ({}));
-      throw new Error(errorPayload.error || `Backend returned HTTP ${response.status}.`);
+
+    // Hook: Close Tab Button
+    const btnClose = itemEl.querySelector('.btn-close-tab');
+    if (btnClose) {
+      btnClose.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await handleCloseTab(tab.id, itemEl);
+      });
     }
 
-    // Parse the backend response; it may be an array or an object with a `tabs` array.
-    const payload = await response.json();
-    const results = Array.isArray(payload) ? payload : payload?.tabs;
-    if (!Array.isArray(results)) throw new Error("Backend response must be an array of tab results.");
-    // Check the required data contract before rendering any backend-supplied values.
-    const validResults = results.every((tab) =>
-      tab && Number.isInteger(tab.id) && typeof tab.title === "string" &&
-      typeof tab.url === "string" && ["safe", "malicious", "pending"].includes(tab.status) &&
-      typeof tab.riskScore === "number" && Array.isArray(tab.evidence) &&
-      tab.evidence.every((item) => typeof item === "string")
-    );
-    if (!validResults) throw new Error("Backend tab results do not match the required data contract.");
+    // Hook: Report False Positive Button
+    const btnFp = itemEl.querySelector('.btn-report-fp');
+    if (btnFp) {
+      btnFp.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await handleReportFalsePositive(tab, verdict, itemEl);
+      });
+    }
 
-    // Replace the current result list with backend records, then regenerate the accordion UI.
-    tabsData = results;
-    renderTabs();
-    tabCount.textContent = `${results.length} analyzed`;
-  } catch (error) {
-    // Keep the current UI intact and report a concise failure to the user.
-    console.error("PhishGuard backend analysis failed:", error);
-    tabCount.textContent = error.message || "Backend request failed.";
-  } finally {
-    // Restore the button whether the request succeeded or failed.
-    analyzeButton.disabled = false;
-    buttonLabel.textContent = originalLabel;
+    elList.appendChild(itemEl);
+  }
+
+  if (visibleCount === 0) {
+    elEmpty.classList.remove('hidden');
   }
 }
 
-// Hook for future Chrome tab-close integration; add chrome.tabs.remove(tabId) here.
-function handleCloseTab(tabId) {}
-// Hook for future false-positive reporting; send tabId to your backend here.
-function handleReport(tabId) {}
+/**
+ * Functional Remediation Hook 1: Close Tab
+ * Calls chrome.tabs.remove(tabId) and dynamically removes the row from the DOM.
+ */
+async function handleCloseTab(tabId, itemEl) {
+  try {
+    // 1. Remove browser tab via Chrome Extension API
+    await chrome.tabs.remove(tabId);
 
-// Listen once on the parent container so it handles clicks on dynamically-rendered items.
-tabsContainer.addEventListener("click", (event) => {
-  // Find out whether the click came from one of the action buttons.
-  const actionButton = event.target.closest("[data-action]");
-  // If it was an action button, run its hook and do not also toggle the accordion.
-  if (actionButton) {
-    event.stopPropagation(); // Prevent the click from reaching the accordion trigger logic.
-    const tabId = Number(actionButton.dataset.tabId); // Read the tab ID stored on the button.
-    if (actionButton.dataset.action === "close") handleCloseTab(tabId); // Run close hook.
-    if (actionButton.dataset.action === "report") handleReport(tabId); // Run report hook.
-    return; // Finish handling this click so the detail panel stays open.
+    // 2. Animate and remove row from DOM
+    itemEl.classList.add('is-removing');
+    setTimeout(() => {
+      itemEl.remove();
+
+      // Update state arrays
+      state.tabs = state.tabs.filter(t => t.id !== tabId);
+      state.triageData.delete(tabId);
+
+      // Refresh metrics
+      updateMetrics();
+
+      if (state.tabs.length === 0) {
+        elEmpty.classList.remove('hidden');
+      }
+    }, 200);
+
+    showToast('Tab closed successfully.');
+  } catch (err) {
+    console.error('[Close Tab Error]', err);
+    showToast(`Could not close tab: ${err.message}`);
   }
+}
 
-  // Otherwise, check if the click came from an accordion header button.
-  const trigger = event.target.closest(".tab-trigger");
-  if (!trigger) return; // Ignore clicks elsewhere inside the list.
+/**
+ * Functional Remediation Hook 2: Report False Positive
+ * Writes threat data to clipboard via navigator.clipboard.writeText.
+ * Messages background.js worker to add URL to local suppression list.
+ */
+async function handleReportFalsePositive(tab, verdict, itemEl) {
+  try {
+    // 1. Construct threat telemetry report object
+    const threatReport = {
+      reportType: "PhishGuard_False_Positive_Submission",
+      submittedAt: new Date().toISOString(),
+      tabId: tab.id,
+      url: tab.url,
+      title: tab.title,
+      verdict: {
+        status: verdict.status,
+        riskScore: verdict.riskScore,
+        evidence: verdict.evidence || [],
+        notes: verdict.notes || [],
+        unverifiedBy: verdict.unverifiedBy || []
+      },
+      clientContext: {
+        userAgent: navigator.userAgent,
+        source: "PhishGuard Web SOC Console"
+      }
+    };
 
-  // Identify the clicked row and remember whether it was already expanded.
-  const item = trigger.closest(".tab-item");
-  const wasOpen = item.classList.contains("is-open");
+    const serializedReport = JSON.stringify(threatReport, null, 2);
 
-  // Close every currently-open row so at most one tab's details are visible.
-  tabsContainer.querySelectorAll(".tab-item.is-open").forEach((openItem) => {
-    openItem.classList.remove("is-open"); // Remove the CSS class that expands the row.
-    openItem.querySelector(".tab-trigger").setAttribute("aria-expanded", "false"); // Update accessibility state.
-    openItem.querySelector(".details-shell").setAttribute("aria-hidden", "true"); // Hide details from assistive tech.
-  });
+    // 2. Write threat data to user's clipboard
+    await navigator.clipboard.writeText(serializedReport);
 
-  // If the clicked row was closed, open it; if it was open, leave all rows closed.
-  if (!wasOpen) {
-    item.classList.add("is-open"); // CSS animates this row's details into view.
-    trigger.setAttribute("aria-expanded", "true"); // Announce the expanded state accessibly.
-    item.querySelector(".details-shell").setAttribute("aria-hidden", "false"); // Expose details to assistive tech.
+    // 3. Message background worker to add to suppression list
+    await chrome.runtime.sendMessage({
+      action: 'SUPPRESS_URL',
+      url: tab.url,
+      tabId: tab.id
+    });
+
+    const normUrl = (tab.url || '').split('#')[0];
+    if (!state.suppressionList.includes(normUrl)) {
+      state.suppressionList.push(normUrl);
+    }
+
+    // 4. Update UI card presentation immediately
+    itemEl.classList.remove('is-malicious');
+    itemEl.classList.add('is-suppressed');
+
+    const badgeEl = itemEl.querySelector('.verdict-badge');
+    if (badgeEl) {
+      badgeEl.className = 'verdict-badge badge-suppressed';
+      badgeEl.textContent = 'SUPPRESSED';
+    }
+
+    // Update summary metrics
+    updateMetrics();
+
+    // 5. User confirmation toast
+    showToast('Threat report copied to clipboard! URL suppressed from alerts.');
+
+  } catch (err) {
+    console.error('[False Positive Error]', err);
+    showToast(`Clipboard write failed: ${err.message}`);
   }
+}
+
+// -----------------------------------------------------------------------------
+// Event Bindings
+// -----------------------------------------------------------------------------
+
+// Rescan Open Tabs button
+elBtnRescan.addEventListener('click', async () => {
+  await loadAndTriageTabs(true);
+  showToast('Rescanned all open tabs.');
 });
 
-// Connect the Analyze button to the backend request function.
-analyzeButton.addEventListener("click", analyzeOpenTabs);
+// Filter tabs
+filterButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    filterButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.currentFilter = btn.dataset.filter;
+    renderAccordionList();
+  });
+});
 
-// Render the empty state immediately; successful backend data appears after the scan.
-renderTabs();
+// Initial boot
+document.addEventListener('DOMContentLoaded', async () => {
+  await checkBackendHealth();
+  await loadAndTriageTabs(false);
+});

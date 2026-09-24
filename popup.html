@@ -1,47 +1,102 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>PhishGuard Web</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhishGuard Web - SOC Threat Triage</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <main class="popup" aria-label="PhishGuard Web security scan">
-    <header class="app-header">
-      <div class="brand">
-        <span class="brand-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2.8 20 6v5.7c0 5-3.4 8.5-8 10.5-4.6-2-8-5.5-8-10.5V6l8-3.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-            <path d="m8.7 12.1 2.1 2.1 4.6-4.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <div class="app-container">
+    <!-- Header Section -->
+    <header class="soc-header">
+      <div class="brand-row">
+        <div class="brand-identity">
+          <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M9 12l2 2 4-4" stroke="#38bdf8"/>
           </svg>
-        </span>
-        <h1>PhishGuard Web</h1>
+          <div class="brand-text">
+            <h1 class="brand-title">PhishGuard <span class="accent-text">Web</span></h1>
+            <span class="brand-sub">SOC Threat Triage Console</span>
+          </div>
+        </div>
+        <div id="backend-status-pill" class="status-pill status-checking" title="Checking API status...">
+          <span class="status-dot"></span>
+          <span class="status-text">API Online</span>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Ribbon -->
+      <div class="metrics-ribbon">
+        <div class="metric-card metric-malicious" id="metric-malicious-card">
+          <span class="metric-label">MALICIOUS</span>
+          <span class="metric-value" id="count-malicious">0</span>
+        </div>
+        <div class="metric-card metric-unknown" id="metric-unknown-card">
+          <span class="metric-label">UNKNOWN</span>
+          <span class="metric-value" id="count-unknown">0</span>
+        </div>
+        <div class="metric-card metric-safe" id="metric-safe-card">
+          <span class="metric-label">SAFE</span>
+          <span class="metric-value" id="count-safe">0</span>
+        </div>
+      </div>
+
+      <!-- Actions & Filters -->
+      <div class="controls-row">
+        <button id="btn-rescan" class="btn-rescan" title="Rescan all currently open tabs">
+          <svg class="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          <span>Rescan Open Tabs</span>
+        </button>
+
+        <div class="filter-pills" role="tablist">
+          <button class="filter-btn active" data-filter="all">All (<span id="count-total">0</span>)</button>
+          <button class="filter-btn" data-filter="malicious">Threats</button>
+          <button class="filter-btn" data-filter="unknown">Unverified</button>
+        </div>
       </div>
     </header>
 
-    <button class="analyze-button" id="analyze-button" type="button">
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 2.5v3M10 14.5v3M17.5 10h-3M5.5 10h-3m12.03-5.03-2.12 2.12m-6.82 6.82-2.12 2.12m11.06 0-2.12-2.12m-6.82-6.82-2.12-2.12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-        <circle cx="10" cy="10" r="3.1" stroke="currentColor" stroke-width="1.7"/>
+    <!-- Notification Toast Banner -->
+    <div id="toast-banner" class="toast-banner hidden" role="alert">
+      <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 6L9 17l-5-5"/>
       </svg>
-      <span>Analyze Open Tabs</span>
-    </button>
+      <span id="toast-text" class="toast-text">Triage report copied to clipboard.</span>
+    </div>
 
-
-    <section class="tabs-section" aria-labelledby="tabs-heading">
-      <div class="section-heading">
-        <h2 id="tabs-heading">Open tabs</h2>
-        <span class="section-caption" id="tab-count"></span>
+    <!-- Main Content: Accordion Triage Stream -->
+    <main class="triage-main">
+      <div id="loading-indicator" class="loading-state hidden">
+        <div class="radar-spinner"></div>
+        <span class="loading-label">Querying Intelligence Feeds...</span>
       </div>
-      <div id="tabs-container" class="tabs-container" aria-live="polite"></div>
-    </section>
-    <footer class="popup-footer">
-      <span class="footer-shield" aria-hidden="true">✓</span>
-      <span>Protection is active for this session</span>
+
+      <div id="accordion-list" class="accordion-list">
+        <!-- Rendered dynamically by popup.js -->
+      </div>
+
+      <div id="empty-state" class="empty-state hidden">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p class="empty-title">No Active Tabs Found</p>
+        <p class="empty-desc">Open a webpage in your browser to begin real-time triage.</p>
+      </div>
+    </main>
+
+    <!-- SOC Footer -->
+    <footer class="soc-footer">
+      <span class="footer-target">Host: <code id="backend-host-label">127.0.0.1:8787</code></span>
+      <span class="footer-ver">PhishGuard v1.0.0</span>
     </footer>
-  </main>
-  <script src="popup.js"></script>
+  </div>
+
+  <script src="popup.js" type="module"></script>
 </body>
 </html>
