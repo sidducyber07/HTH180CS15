@@ -1,0 +1,5 @@
+# Keep provider credentials out of version control.
+backend/.env
+
+# Node dependencies, if added later.
+node_modules/

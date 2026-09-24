@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "PhishGuard Web",
+  "version": "1.0.0",
+  "description": "Check open web tabs against public threat-intelligence feeds.",
+  "permissions": ["tabs"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

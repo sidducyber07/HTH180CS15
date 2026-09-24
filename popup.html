@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>PhishGuard Web</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="popup" aria-label="PhishGuard Web security scan">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2.8 20 6v5.7c0 5-3.4 8.5-8 10.5-4.6-2-8-5.5-8-10.5V6l8-3.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="m8.7 12.1 2.1 2.1 4.6-4.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <h1>PhishGuard Web</h1>
+      </div>
+    </header>
+
+    <button class="analyze-button" id="analyze-button" type="button">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10 2.5v3M10 14.5v3M17.5 10h-3M5.5 10h-3m12.03-5.03-2.12 2.12m-6.82 6.82-2.12 2.12m11.06 0-2.12-2.12m-6.82-6.82-2.12-2.12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        <circle cx="10" cy="10" r="3.1" stroke="currentColor" stroke-width="1.7"/>
+      </svg>
+      <span>Analyze Open Tabs</span>
+    </button>
+
+
+    <section class="tabs-section" aria-labelledby="tabs-heading">
+      <div class="section-heading">
+        <h2 id="tabs-heading">Open tabs</h2>
+        <span class="section-caption" id="tab-count"></span>
+      </div>
+      <div id="tabs-container" class="tabs-container" aria-live="polite"></div>
+    </section>
+    <footer class="popup-footer">
+      <span class="footer-shield" aria-hidden="true">✓</span>
+      <span>Protection is active for this session</span>
+    </footer>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
