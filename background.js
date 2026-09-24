@@ -214,11 +214,10 @@ async function handleVerdictAlerting(tabId, verdict, isSuppressed) {
 // Event Listeners
 // -----------------------------------------------------------------------------
 
-// 1. Listen for completed tab loads
+// 1. Tab load listener (Passive Mode: Do NOT auto-scan without user intimation)
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab && tab.url) {
-    await analyzeTab(tab);
-  }
+  // Respect strict user intimation constraint:
+  // Threat detection and feed lookups are executed only when the user explicitly initiates a scan.
 });
 
 // 2. Clear badge when tab is removed or replaced

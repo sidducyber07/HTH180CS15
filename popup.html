@@ -27,35 +27,76 @@
         </div>
       </div>
 
-      <!-- Quick Metrics Ribbon -->
-      <div class="metrics-ribbon">
-        <div class="metric-card metric-malicious" id="metric-malicious-card">
-          <span class="metric-label">MALICIOUS</span>
-          <span class="metric-value" id="count-malicious">0</span>
-        </div>
-        <div class="metric-card metric-unknown" id="metric-unknown-card">
-          <span class="metric-label">UNKNOWN</span>
-          <span class="metric-value" id="count-unknown">0</span>
-        </div>
-        <div class="metric-card metric-safe" id="metric-safe-card">
-          <span class="metric-label">SAFE</span>
-          <span class="metric-value" id="count-safe">0</span>
-        </div>
-      </div>
-
-      <!-- Actions & Filters -->
-      <div class="controls-row">
-        <button id="btn-rescan" class="btn-rescan" title="Rescan all currently open tabs">
-          <svg class="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-          </svg>
-          <span>Rescan Open Tabs</span>
+      <!-- SOC Module Switcher Navigation -->
+      <nav class="soc-nav-bar" id="soc-nav-bar" role="tablist">
+        <button class="nav-tab active" data-module="tabs" title="Browser Tabs Triage">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          <span>Tabs</span>
         </button>
+        <button class="nav-tab" data-module="url" title="Deep URL Inspection">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <span>URL</span>
+        </button>
+        <button class="nav-tab" data-module="message" title="Message Text & Smishing">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Message</span>
+        </button>
+        <button class="nav-tab" data-module="qr" title="QR Code & Quishing Scanner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h2v2h-2zM18 18h3v3h-3zM14 19h2v2h-2zM19 14h2v2h-2z"/></svg>
+          <span>QR Code</span>
+        </button>
+        <button class="nav-tab" data-module="audio" title="Audio & Voice Vishing">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          <span>Audio</span>
+        </button>
+        <button class="nav-tab" data-module="video" title="Video & Deepfake Checker">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          <span>Video</span>
+        </button>
+      </nav>
 
-        <div class="filter-pills" role="tablist">
-          <button class="filter-btn active" data-filter="all">All (<span id="count-total">0</span>)</button>
-          <button class="filter-btn" data-filter="malicious">Threats</button>
-          <button class="filter-btn" data-filter="unknown">Unverified</button>
+      <!-- Tabs Mode Controls & Metrics (Visible in Tabs View) -->
+      <div id="tabs-header-controls">
+        <!-- Threat Level Metrics Ribbon -->
+        <div class="metrics-ribbon">
+          <div class="metric-card metric-danger" id="metric-danger-card" title="Threat Level: Danger (Score 50-100)" role="button" tabindex="0">
+            <div class="metric-top-row">
+              <span class="metric-label">DANGER</span>
+              <span class="metric-range">50-100</span>
+            </div>
+            <span class="metric-value" id="count-danger">0</span>
+          </div>
+          <div class="metric-card metric-warning" id="metric-warning-card" title="Threat Level: Warning (Score 1-50)" role="button" tabindex="0">
+            <div class="metric-top-row">
+              <span class="metric-label">WARNING</span>
+              <span class="metric-range">1-50</span>
+            </div>
+            <span class="metric-value" id="count-warning">0</span>
+          </div>
+          <div class="metric-card metric-safe" id="metric-safe-card" title="Threat Level: Safe (Score 0)" role="button" tabindex="0">
+            <div class="metric-top-row">
+              <span class="metric-label">SAFE</span>
+              <span class="metric-range">Level 0</span>
+            </div>
+            <span class="metric-value" id="count-safe">0</span>
+          </div>
+        </div>
+
+        <!-- Actions & Filters -->
+        <div class="controls-row">
+          <button id="btn-rescan" class="btn-rescan" title="Scan all currently open tabs">
+            <svg class="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            <span id="btn-rescan-text">Scan Open Tabs</span>
+          </button>
+
+          <div class="filter-pills" role="tablist">
+            <button class="filter-btn active" data-filter="all">All (<span id="count-total">0</span>)</button>
+            <button class="filter-btn" data-filter="danger">Danger (<span id="pill-count-danger">0</span>)</button>
+            <button class="filter-btn" data-filter="warning">Warning (<span id="pill-count-warning">0</span>)</button>
+            <button class="filter-btn" data-filter="safe">Safe (<span id="pill-count-safe">0</span>)</button>
+          </div>
         </div>
       </div>
     </header>
@@ -68,32 +109,477 @@
       <span id="toast-text" class="toast-text">Triage report copied to clipboard.</span>
     </div>
 
-    <!-- Main Content: Accordion Triage Stream -->
+    <!-- Main Content Area -->
     <main class="triage-main">
-      <div id="loading-indicator" class="loading-state hidden">
-        <div class="radar-spinner"></div>
-        <span class="loading-label">Querying Intelligence Feeds...</span>
+
+      <!-- ================================================================= -->
+      <!-- Module 1: Browser Tabs Triage View                                 -->
+      <!-- ================================================================= -->
+      <div id="view-tabs" class="module-view active">
+        <!-- Stage 1: Ready / Idle State (Normal Blue Accent, Requires User Intimation) -->
+        <section id="ready-state" class="ready-state">
+          <div class="ready-hero-icon-wrapper">
+            <svg class="ready-hero-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="M12 8v4M12 16h.01" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h2 class="ready-title">Threat Inspection Ready</h2>
+          <p class="ready-desc">PhishGuard operates on-demand. Click below to inspect URLs, on-screen text, form actions, and displayed links across your open browser tabs.</p>
+          
+          <div class="ready-tab-badge">
+            <span class="pulse-dot"></span>
+            <span id="ready-tab-count-label">Detecting open tabs...</span>
+          </div>
+
+          <button id="btn-hero-scan" class="btn-primary-hero-scan">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+              <circle cx="10" cy="10" r="7"/>
+              <path d="m10 6 3 4h-6l3-4zM10 14v-4"/>
+            </svg>
+            <span>Start Threat Scan</span>
+          </button>
+        </section>
+
+        <!-- Stage 2: Predefined Inspection Checklist (Active Scan Progress) -->
+        <section id="checklist-container" class="checklist-container hidden" aria-live="polite">
+          <div class="checklist-header">
+            <div class="checklist-title-group">
+              <span class="checklist-title">Security Inspection Pipeline</span>
+              <span class="checklist-percent" id="checklist-percent">0%</span>
+            </div>
+            <div class="progress-bar-track">
+              <div id="progress-bar-fill" class="progress-bar-fill"></div>
+            </div>
+          </div>
+
+          <ul class="checklist-steps" id="checklist-steps">
+            <!-- Step 1 -->
+            <li class="checklist-step" id="step-tabs">
+              <div class="step-indicator">
+                <span class="step-icon step-pending">○</span>
+              </div>
+              <div class="step-details">
+                <div class="step-label">1. Enumerating Browser Tabs</div>
+                <div class="step-status">Pending initialization...</div>
+              </div>
+            </li>
+
+            <!-- Step 2 -->
+            <li class="checklist-step" id="step-cache">
+              <div class="step-indicator">
+                <span class="step-icon step-pending">○</span>
+              </div>
+              <div class="step-details">
+                <div class="step-label">2. Checking Cache & Whitelist</div>
+                <div class="step-status">Awaiting tab resolution...</div>
+              </div>
+            </li>
+
+            <!-- Step 3 -->
+            <li class="checklist-step" id="step-content">
+              <div class="step-indicator">
+                <span class="step-icon step-pending">○</span>
+              </div>
+              <div class="step-details">
+                <div class="step-label">3. Inspecting On-Screen Content & Link Display</div>
+                <div class="step-status">Checking forms, deceptive links & social engineering...</div>
+              </div>
+            </li>
+
+            <!-- Step 4 -->
+            <li class="checklist-step" id="step-intel">
+              <div class="step-indicator">
+                <span class="step-icon step-pending">○</span>
+              </div>
+              <div class="step-details">
+                <div class="step-label">4. Multi-Engine Threat Intelligence</div>
+                <div class="step-status">Scanning OpenPhish feed & VirusTotal v3 telemetry...</div>
+              </div>
+            </li>
+
+            <!-- Step 5 -->
+            <li class="checklist-step" id="step-synthesis">
+              <div class="step-indicator">
+                <span class="step-icon step-pending">○</span>
+              </div>
+              <div class="step-details">
+                <div class="step-label">5. Multi-Tier Threat Level Synthesis</div>
+                <div class="step-status">Formulating levels: 0 Safe, 1-50 Warning, 50-100 Danger...</div>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Stage 3: Overall Post-Scan Threat Posture Banner -->
+        <section id="overall-threat-banner" class="overall-threat-banner hidden" role="status">
+          <div class="threat-banner-header">
+            <div class="threat-banner-title-group">
+              <span class="threat-banner-icon" id="threat-banner-icon">🛡️</span>
+              <div class="threat-banner-titles">
+                <div class="threat-banner-level-tag" id="threat-banner-level-tag">LEVEL 0 &bull; ALL SAFE</div>
+                <div class="threat-banner-subtitle" id="threat-banner-subtitle">All active tabs evaluated clean across screen contents & threat feeds</div>
+              </div>
+            </div>
+            <div class="threat-banner-score-box">
+              <span class="threat-banner-score-val" id="threat-banner-score-val">0</span>
+              <span class="threat-banner-score-max">/100</span>
+            </div>
+          </div>
+          <div class="threat-spectrum-track">
+            <div class="threat-spectrum-fill" id="threat-spectrum-fill" style="width: 0%;"></div>
+          </div>
+        </section>
+
+        <!-- Stage 4: Dynamic Accordion Results Stream -->
+        <section id="results-container" class="results-container hidden">
+          <div id="accordion-list" class="accordion-list">
+            <!-- Rendered dynamically by popup.js -->
+          </div>
+        </section>
+
+        <!-- Stage 4: Empty State -->
+        <div id="empty-state" class="empty-state hidden">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <p class="empty-title">No Active Tabs Found</p>
+          <p class="empty-desc">Open a webpage in your browser to begin threat triage.</p>
+        </div>
       </div>
 
-      <div id="accordion-list" class="accordion-list">
-        <!-- Rendered dynamically by popup.js -->
+      <!-- ================================================================= -->
+      <!-- Module 2: Deep URL Security Scan & Auto-Discovery View            -->
+      <!-- ================================================================= -->
+      <div id="view-url" class="module-view hidden">
+        <div class="tool-intro">
+          <h2 class="tool-title">Deep URL Forensics & Auto-Discovery</h2>
+          <p class="tool-desc">Automatically searches and harvests URLs from open tabs and on-page links. Select any link for instant deep triage, or auto-scan all discovered links at once.</p>
+        </div>
+
+        <div class="discovered-urls-card">
+          <div class="discovered-header">
+            <div class="discovered-title-group">
+              <span class="discovered-title">Discovered Tabs & Links</span>
+              <span id="discovered-total-badge" class="discovered-badge">0 Found</span>
+            </div>
+            <div class="discovered-actions">
+              <button id="btn-refresh-discovered" class="btn-secondary-action btn-compact" title="Re-crawl open tabs and on-page links">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>Refresh</span>
+              </button>
+              <button id="btn-auto-scan-all-links" class="btn-primary-action btn-compact btn-auto-scan-all" title="Batch scan all discovered tabs and page links">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>⚡ Auto-Scan All</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="discovered-filter-bar">
+            <button class="discovered-filter-pill active" data-disc-filter="all">All (<span id="disc-count-all">0</span>)</button>
+            <button class="discovered-filter-pill" data-disc-filter="tabs">Tabs (<span id="disc-count-tabs">0</span>)</button>
+            <button class="discovered-filter-pill" data-disc-filter="links">Page Links (<span id="disc-count-links">0</span>)</button>
+            <button class="discovered-filter-pill" data-disc-filter="external">External (<span id="disc-count-external">0</span>)</button>
+          </div>
+
+          <div class="input-action-row" style="margin-top: 8px;">
+            <input type="url" id="input-scan-url" class="soc-input" placeholder="Type or click a discovered URL to scan..." autocomplete="off" spellcheck="false">
+            <button id="btn-scan-url" class="btn-primary-action">Scan</button>
+          </div>
+
+          <div id="discovered-urls-list" class="discovered-urls-list">
+            <div class="disc-empty-hint">Discovering URLs from open tabs & page links...</div>
+          </div>
+        </div>
+
+        <!-- Batch Multi-URL Results Card (Visible when Auto-Scan All is executed) -->
+        <div id="batch-results-card" class="tool-result-card hidden">
+          <div class="result-header">
+            <div class="result-badge-wrap">
+              <span id="batch-threat-badge" class="verdict-badge badge-safe">SAFE</span>
+              <span id="batch-stats-badge" class="score-badge score-safe">0 / 0</span>
+            </div>
+            <span class="result-host-title">Discovered Links Triage Summary</span>
+          </div>
+
+          <div class="threat-meter-row">
+            <span class="threat-meter-label">Threat Distribution:</span>
+            <div class="threat-meter-bar">
+              <div id="batch-meter-fill" class="threat-meter-fill fill-safe" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="result-meta-grid">
+            <div class="meta-item"><span class="meta-label">Total Links:</span> <span id="batch-meta-total" class="meta-value">0</span></div>
+            <div class="meta-item"><span class="meta-label">Danger (50-100):</span> <span id="batch-meta-danger" class="meta-value" style="color: #ff3d71;">0</span></div>
+            <div class="meta-item"><span class="meta-label">Warning (1-50):</span> <span id="batch-meta-warning" class="meta-value" style="color: #ffc107;">0</span></div>
+            <div class="meta-item"><span class="meta-label">Safe (0):</span> <span id="batch-meta-safe" class="meta-value" style="color: #00e676;">0</span></div>
+          </div>
+
+          <div class="section-heading" style="margin-top: 10px;">Scanned Links Audit Matrix</div>
+          <div id="batch-urls-list" class="batch-urls-table"></div>
+        </div>
+
+        <!-- Individual URL Detailed Forensic Result Card -->
+        <div id="result-url-card" class="tool-result-card hidden">
+          <div class="result-header">
+            <div class="result-badge-wrap">
+              <span id="url-threat-badge" class="verdict-badge badge-safe">SAFE</span>
+              <span id="url-score-badge" class="score-badge score-safe">0 / 100</span>
+            </div>
+            <span id="url-result-host" class="result-host-title"></span>
+          </div>
+
+          <div class="threat-meter-row">
+            <span class="threat-meter-label">Threat Meter:</span>
+            <div class="threat-meter-bar">
+              <div id="url-meter-fill" class="threat-meter-fill fill-safe" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="result-meta-grid">
+            <div class="meta-item"><span class="meta-label">Domain:</span> <span id="url-meta-domain" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Entropy:</span> <span id="url-meta-entropy" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Homograph:</span> <span id="url-meta-homograph" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">TLD Risk:</span> <span id="url-meta-tld" class="meta-value">-</span></div>
+          </div>
+
+          <div id="url-findings-block" class="findings-block">
+            <div class="section-heading">Threat Findings & Evidence</div>
+            <ul id="url-evidence-list" class="evidence-list"></ul>
+          </div>
+        </div>
       </div>
 
-      <div id="empty-state" class="empty-state hidden">
-        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <p class="empty-title">No Active Tabs Found</p>
-        <p class="empty-desc">Open a webpage in your browser to begin real-time triage.</p>
+      <!-- ================================================================= -->
+      <!-- Module 3: Message Text / Smishing Triage View                     -->
+      <!-- ================================================================= -->
+      <div id="view-message" class="module-view hidden">
+        <div class="tool-intro">
+          <h2 class="tool-title">Message Text & Smishing Triage</h2>
+          <p class="tool-desc">Inspect SMS, email, WhatsApp, or chat messages for psychological coercion, credential solicitations, and extracted phishing links.</p>
+        </div>
+
+        <div class="tool-form-card">
+          <label class="form-label" for="input-scan-message">Message Content</label>
+          <textarea id="input-scan-message" class="soc-textarea" rows="4" placeholder="Paste suspicious SMS, email, or chat text here..."></textarea>
+          
+          <div class="input-action-row" style="margin-top: 8px;">
+            <input type="text" id="input-message-sender" class="soc-input" placeholder="Optional sender: e.g. +1-800-555-0199 or support@bank.com">
+            <button id="btn-scan-message" class="btn-primary-action">Analyze</button>
+          </div>
+        </div>
+
+        <div id="result-message-card" class="tool-result-card hidden">
+          <div class="result-header">
+            <div class="result-badge-wrap">
+              <span id="msg-threat-badge" class="verdict-badge badge-safe">SAFE</span>
+              <span id="msg-score-badge" class="score-badge score-safe">0 / 100</span>
+            </div>
+            <span id="msg-result-title" class="result-host-title">Message Telemetry</span>
+          </div>
+
+          <div class="threat-meter-row">
+            <span class="threat-meter-label">Threat Meter:</span>
+            <div class="threat-meter-bar">
+              <div id="msg-meter-fill" class="threat-meter-fill fill-safe" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div id="msg-urls-block" class="findings-block hidden">
+            <div class="section-heading">Extracted Embedded URLs</div>
+            <ul id="msg-urls-list" class="evidence-list"></ul>
+          </div>
+
+          <div id="msg-findings-block" class="findings-block">
+            <div class="section-heading">Heuristic IOC Findings</div>
+            <ul id="msg-evidence-list" class="evidence-list"></ul>
+          </div>
+        </div>
       </div>
+
+      <!-- ================================================================= -->
+      <!-- Module 4: QR Code & Quishing Scanner View                         -->
+      <!-- ================================================================= -->
+      <div id="view-qr" class="module-view hidden">
+        <div class="tool-intro">
+          <h2 class="tool-title">QR Code & Quishing Checker</h2>
+          <p class="tool-desc">Decode and triage QR codes from uploaded images, text strings, or extract QR codes from the active browser tab.</p>
+        </div>
+
+        <div class="tool-form-card">
+          <div id="qr-dropzone" class="soc-dropzone" tabindex="0">
+            <input type="file" id="input-qr-file" class="file-input-hidden" accept="image/*">
+            <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h2v2h-2zM18 18h3v3h-3zM14 19h2v2h-2zM19 14h2v2h-2z"/></svg>
+            <span class="dropzone-text" id="qr-dropzone-label">Click or drop QR image (.png, .jpg, .webp)</span>
+          </div>
+
+          <div id="qr-preview-wrapper" class="preview-wrapper hidden">
+            <img id="qr-image-preview" class="image-preview" alt="QR Preview">
+            <button id="btn-clear-qr" class="btn-clear-preview" title="Remove image">&times;</button>
+          </div>
+
+          <div class="or-separator"><span>OR</span></div>
+
+          <div class="input-action-row">
+            <input type="text" id="input-qr-raw" class="soc-input" placeholder="Paste decoded QR URL or payload..." autocomplete="off">
+            <button id="btn-scan-qr" class="btn-primary-action">Triage</button>
+          </div>
+
+          <button id="btn-scan-page-qr" class="btn-secondary-action" style="margin-top: 8px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m10 6 3 4h-6l3-4zM10 14v-4"/></svg>
+            <span>Scan Active Tab for Embedded QR Codes</span>
+          </button>
+        </div>
+
+        <div id="result-qr-card" class="tool-result-card hidden">
+          <div class="result-header">
+            <div class="result-badge-wrap">
+              <span id="qr-threat-badge" class="verdict-badge badge-safe">SAFE</span>
+              <span id="qr-score-badge" class="score-badge score-safe">0 / 100</span>
+            </div>
+            <span id="qr-result-title" class="result-host-title">QR Payload Analysis</span>
+          </div>
+
+          <div class="threat-meter-row">
+            <span class="threat-meter-label">Threat Meter:</span>
+            <div class="threat-meter-bar">
+              <div id="qr-meter-fill" class="threat-meter-fill fill-safe" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="payload-box">
+            <span class="payload-label">Decoded Payload:</span>
+            <code id="qr-payload-text" class="payload-code"></code>
+          </div>
+
+          <div id="qr-findings-block" class="findings-block">
+            <div class="section-heading">Quishing Findings & Triage Evidence</div>
+            <ul id="qr-evidence-list" class="evidence-list"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- Module 5: Audio Voice & Vishing Checker View                      -->
+      <!-- ================================================================= -->
+      <div id="view-audio" class="module-view hidden">
+        <div class="tool-intro">
+          <h2 class="tool-title">Audio Voice & Vishing Checker</h2>
+          <p class="tool-desc">Acoustic frequency analysis for synthetic AI speech, sharp spectral cutoffs, robotic pitch invariance, and spoken vishing patterns.</p>
+        </div>
+
+        <div class="tool-form-card">
+          <div id="audio-dropzone" class="soc-dropzone" tabindex="0">
+            <input type="file" id="input-audio-file" class="file-input-hidden" accept="audio/*">
+            <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            <span class="dropzone-text" id="audio-file-label">Click or drop audio file (.wav, .mp3, .ogg, .webm)</span>
+          </div>
+
+          <audio id="audio-player-preview" class="soc-audio-player hidden" controls></audio>
+          <canvas id="audio-visualizer-canvas" class="audio-canvas" width="460" height="50"></canvas>
+
+          <label class="form-label" for="input-audio-transcript" style="margin-top: 8px;">Spoken Transcript (Optional)</label>
+          <textarea id="input-audio-transcript" class="soc-textarea" rows="2" placeholder="Enter transcribed speech, voicemail text, or robocall phrases..."></textarea>
+
+          <button id="btn-scan-audio" class="btn-primary-action" style="margin-top: 8px; width: 100%;">Inspect Audio Forensics</button>
+        </div>
+
+        <div id="result-audio-card" class="tool-result-card hidden">
+          <div class="result-header">
+            <div class="result-badge-wrap">
+              <span id="audio-threat-badge" class="verdict-badge badge-safe">SAFE</span>
+              <span id="audio-score-badge" class="score-badge score-safe">0 / 100</span>
+            </div>
+            <span id="audio-result-title" class="result-host-title">Audio Signal Forensics</span>
+          </div>
+
+          <div class="threat-meter-row">
+            <span class="threat-meter-label">Threat Meter:</span>
+            <div class="threat-meter-bar">
+              <div id="audio-meter-fill" class="threat-meter-fill fill-safe" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="result-meta-grid">
+            <div class="meta-item"><span class="meta-label">Duration:</span> <span id="audio-meta-duration" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Sample Rate:</span> <span id="audio-meta-rate" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Pitch Variance:</span> <span id="audio-meta-pitch" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Cutoff Anomaly:</span> <span id="audio-meta-cutoff" class="meta-value">-</span></div>
+          </div>
+
+          <div id="audio-findings-block" class="findings-block">
+            <div class="section-heading">Acoustic & Vishing Findings</div>
+            <ul id="audio-evidence-list" class="evidence-list"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- Module 6: Video Deepfake & Phishing Checker View                  -->
+      <!-- ================================================================= -->
+      <div id="view-video" class="module-view hidden">
+        <div class="tool-intro">
+          <h2 class="tool-title">Video Deepfake & Phishing Checker</h2>
+          <p class="tool-desc">Frame-sampling forensics for synthetic facial warping, perimeter pixel jitter, and video-embedded phishing links/QRs.</p>
+        </div>
+
+        <div class="tool-form-card">
+          <div id="video-dropzone" class="soc-dropzone" tabindex="0">
+            <input type="file" id="input-video-file" class="file-input-hidden" accept="video/*">
+            <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            <span class="dropzone-text" id="video-file-label">Click or drop video file (.mp4, .webm)</span>
+          </div>
+
+          <video id="video-player-preview" class="soc-video-player hidden" controls playsinline></video>
+          <canvas id="video-sample-canvas" class="hidden"></canvas>
+
+          <button id="btn-scan-page-video" class="btn-secondary-action" style="margin-top: 8px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m10 6 3 4h-6l3-4zM10 14v-4"/></svg>
+            <span>Inspect Video on Active Tab</span>
+          </button>
+
+          <button id="btn-scan-video" class="btn-primary-action" style="margin-top: 8px; width: 100%;">Run Video Forensics</button>
+        </div>
+
+        <div id="result-video-card" class="tool-result-card hidden">
+          <div class="result-header">
+            <div class="result-badge-wrap">
+              <span id="video-threat-badge" class="verdict-badge badge-safe">SAFE</span>
+              <span id="video-score-badge" class="score-badge score-safe">0 / 100</span>
+            </div>
+            <span id="video-result-title" class="result-host-title">Video Frame Forensics</span>
+          </div>
+
+          <div class="threat-meter-row">
+            <span class="threat-meter-label">Threat Meter:</span>
+            <div class="threat-meter-bar">
+              <div id="video-meter-fill" class="threat-meter-fill fill-safe" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="result-meta-grid">
+            <div class="meta-item"><span class="meta-label">Frames Sampled:</span> <span id="video-meta-frames" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Boundary Jitter:</span> <span id="video-meta-jitter" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Blink Anomalies:</span> <span id="video-meta-blink" class="meta-value">-</span></div>
+            <div class="meta-item"><span class="meta-label">Embedded QRs:</span> <span id="video-meta-qrs" class="meta-value">-</span></div>
+          </div>
+
+          <div id="video-findings-block" class="findings-block">
+            <div class="section-heading">Video Forensics & Phishing Findings</div>
+            <ul id="video-evidence-list" class="evidence-list"></ul>
+          </div>
+        </div>
+      </div>
+
     </main>
 
     <!-- SOC Footer -->
     <footer class="soc-footer">
       <span class="footer-target">Host: <code id="backend-host-label">127.0.0.1:8787</code></span>
-      <span class="footer-ver">PhishGuard v1.0.0</span>
+      <span class="footer-ver">PhishGuard v1.1.0</span>
     </footer>
   </div>
 
